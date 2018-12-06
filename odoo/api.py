@@ -802,6 +802,18 @@ class Environment(Mapping):
         """ return the current language code """
         return self.context.get('lang')
 
+    @property
+    def pcache(self):
+        """ return persistent cache storage """
+        from odoo.tools.redis import get_persistent_cache
+        return get_persistent_cache()
+
+    @property
+    def vcache(self):
+        """ return volatile (lru) cache storage """
+        from odoo.tools.redis import get_volatile_cache
+        return get_volatile_cache()
+
     @contextmanager
     def _do_in_mode(self, mode):
         if self.all.mode:

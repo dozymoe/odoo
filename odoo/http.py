@@ -9,6 +9,7 @@ import datetime
 import functools
 import hashlib
 import hmac
+import importlib
 import inspect
 import logging
 import mimetypes
@@ -44,6 +45,7 @@ except ImportError:
     psutil = None
 
 import odoo
+from odoo import exceptions
 from .service.server import memory_info
 from .service import security, model as service_model
 from .tools.func import lazy_property
@@ -1301,8 +1303,36 @@ class Root(object):
     def session_store(self):
         # Setup http sessions
         path = odoo.tools.config.session_dir
-        _logger.debug('HTTP sessions stored in: %s', path)
-        return werkzeug.contrib.sessions.FilesystemSessionStore(path, session_class=OpenERPSession)
+        if 'session_store' in odoo.tools.config.options and \
+                odoo.tools.config['session_store']:
+
+            module_name = '.'.join(
+                odoo.tools.config['session_store'].split('.')[:-1])
+            class_name = '.'.join(
+                odoo.tools.config['session_store'].split('.')[-1:])
+
+            try:
+                module_ = importlib.import_module(module_name)
+                try:
+                    class_ = getattr(module_, class_name)
+                except AttributeError:
+                    raise exceptions.UserError(
+                        'Class of session store not found: %s' % class_name)
+
+                session_store = class_(path, session_class=OpenERPSession)
+                _logger.debug('HTTP sessions stored via: %s',
+                        odoo.tools.config['session_store'])
+
+            except ImportError:
+                raise exceptions.UserError(
+                    'Module of session store not found: %s' % module_name)
+
+        else:
+            _logger.debug('HTTP sessions stored in: %s', path)
+            session_store = werkzeug.contrib.sessions.FilesystemSessionStore(
+                    path, session_class=OpenERPSession)
+
+        return session_store
 
     @lazy_property
     def nodb_routing_map(self):
